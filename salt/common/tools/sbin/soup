@@ -17,9 +17,30 @@
 
 . /usr/sbin/so-common
 
+INSTALLEDVERSION=$(cat /etc/soversion)
+
+if [[ $INSTALLEDVERSION == "2.4.4" ]]; then
+
+  echo "Initiating supersoup mode"
+  mkdir -p /tmp/supersoup
+  cd /tmp/supersoup
+  echo "Updating soup..."
+  wget https://raw.githubusercontent.com/Security-Onion-Solutions/securityonion/2.4/main/salt/manager/tools/sbin/soup
+  cp soup /opt/so/saltstack/default/salt/manager/tools/sbin
+  echo "Updating soup..."
+  salt-call state.apply manager
+  echo "Please run soup a second time."
+
+  exit 0
+fi
+
+if [ "$INSTALLEDVERSION" = '2.4.3' ] || [ "$INSTALLEDVERSION" = '2.4.2' ] || [ "$INSTALLEDVERSION" = '2.4.1' ] || [ "$INSTALLEDVERSION" = '2.4.0' ]; then
+  echo "soup is not supported on $INSTALLEDVERSION. Please install the latest 2.4 release."
+  exit 1
+fi
+
 UPDATE_DIR=/tmp/sogh/securityonion
 DEFAULT_SALT_DIR=/opt/so/saltstack/default
-INSTALLEDVERSION=$(cat /etc/soversion)
 POSTVERSION=$INSTALLEDVERSION
 INSTALLEDSALTVERSION=$(salt --versions-report | grep Salt: | awk '{print $2}')
 BATCHSIZE=5
@@ -557,6 +578,9 @@ preupgrade_changes() {
     [[ "$INSTALLEDVERSION" == 2.3.220 ]] && up_to_2.3.230
     [[ "$INSTALLEDVERSION" == 2.3.230 ]] && up_to_2.3.240
     [[ "$INSTALLEDVERSION" == 2.3.240 ]] && up_to_2.3.250
+    [[ "$INSTALLEDVERSION" == 2.3.250 ]] && up_to_2.3.260
+    [[ "$INSTALLEDVERSION" == 2.3.260 ]] && up_to_2.3.270
+    [[ "$INSTALLEDVERSION" == 2.3.270 ]] && up_to_2.3.280
     
     true
 }
@@ -587,6 +611,9 @@ postupgrade_changes() {
     [[ "$POSTVERSION" == 2.3.220 ]] && post_to_2.3.230
     [[ "$POSTVERSION" == 2.3.230 ]] && post_to_2.3.240
     [[ "$POSTVERSION" == 2.3.240 ]] && post_to_2.3.250
+    [[ "$POSTVERSION" == 2.3.250 ]] && post_to_2.3.260
+    [[ "$POSTVERSION" == 2.3.260 ]] && post_to_2.3.270
+    [[ "$POSTVERSION" == 2.3.270 ]] && post_to_2.3.280
 
     true
 }
@@ -734,6 +761,29 @@ post_to_2.3.250() {
   echo "Nothing to do for .250"
   POSTVERSION=2.3.250
 }
+
+post_to_2.3.260() {
+  echo "Nothing to do for .260"
+  POSTVERSION=2.3.260
+}
+
+post_to_2.3.270() {
+  echo "Pruning unused docker volumes on all nodes - This process will run in the background."
+  salt --async \* cmd.run "docker volume prune -f"
+
+  POSTVERSION=2.3.270
+}
+
+post_to_2.3.280() {
+  salt-call state.apply ca queue=True
+  stop_salt_minion
+  mv /etc/pki/managerssl.crt /etc/pki/managerssl.crt.old
+  mv /etc/pki/managerssl.key /etc/pki/managerssl.key.old
+  systemctl_func "start" "salt-minion"
+  enable_highstate
+  POSTVERSION=2.3.280
+}
+
 
 stop_salt_master() {
     # kill all salt jobs across the grid because the hang indefinitely if they are queued and salt-master restarts
@@ -1088,6 +1138,21 @@ up_to_2.3.240() {
 up_to_2.3.250() {
   echo "Upgrading to 2.3.250"
   INSTALLEDVERSION=2.3.250
+}
+
+up_to_2.3.260() {
+  echo "Upgrading to 2.3.260"
+  INSTALLEDVERSION=2.3.260
+}
+
+up_to_2.3.270() {
+  echo "Upgrading to 2.3.270"
+  INSTALLEDVERSION=2.3.270
+}
+
+up_to_2.3.280() {
+  echo "Upgrading to 2.3.280"
+  INSTALLEDVERSION=2.3.280
 }
 
 verify_upgradespace() {
@@ -1673,8 +1738,12 @@ if [[ -z $UNATTENDED ]]; then
 
 SOUP - Security Onion UPdater
 
+**WARNING** Security Onion 2.3 reaches End Of Life (EOL) on April 6, 2024.
+Please make plans to migrate to Security Onion 2.4:
+https://blog.securityonion.net/2023/10/6-month-eol-notice-for-security-onion-23.html
+
 Please review the following for more information about the update process and recent updates:
-https://docs.securityonion.net/soup
+https://docs.securityonion.net/en/2.3/soup.html
 https://blog.securityonion.net
 
 EOF
